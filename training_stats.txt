@@ -1,2 +1,2 @@
-Number of games: 113
-Highest score: 69
+Number of games: 130
+Highest score: 71
