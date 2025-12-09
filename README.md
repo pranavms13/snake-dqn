@@ -30,7 +30,7 @@ This project implements a Snake game with an AI agent that learns to play the ga
 
 1. Clone the repository:
 ```sh
-    git clone https://github.com/pranavms13/snake-nn
+    git clone https://github.com/pranavms13/snake-dqn
     cd snake-nn
 ```
 
