@@ -42,9 +42,17 @@ model and stats before exiting. There are no tests and no build step.
   absolute direction.
 - **State is 11 ints**: 3 danger flags, 4 direction flags, 4 fruit-location flags.
   If you change the state vector, update the model's `input_size` (currently 11).
-- **Device.** A global `DEVICE` (CUDA → MPS → CPU) is selected at import. Any new
-  tensor must be created with `device=DEVICE` (or `.to(DEVICE)`), and `torch.load`
-  must pass `map_location=DEVICE`, or you'll get device-mismatch errors.
+- **Device.** A global `DEVICE` is selected at import: `--device cpu|cuda|mps`
+  overrides, else auto-detect (CUDA → MPS → CPU). Any new tensor must be created
+  with `device=DEVICE` (or `.to(DEVICE)`), and `torch.load` must pass
+  `map_location=DEVICE`, or you'll get device-mismatch errors.
+- **The network is tiny, so a big GPU is the wrong tool.** It's 11 → 256 → 3 and
+  trains one sample per step, so a datacenter GPU sits near-idle (~1% util) and CPU
+  is usually *faster* (no host↔device overhead). `--device cpu` to compare.
+- **Keep `train_step` vectorized.** The Bellman target uses a single batched forward
+  over `next_state` plus advanced indexing — do NOT reintroduce a per-sample Python
+  loop with `self.model(next_state[idx])` / `.item()`. On GPU that becomes thousands
+  of tiny kernel launches + host↔device syncs and was the original perf bug.
 - **Persistence.** `model.pth` holds weights; `training_stats.txt` holds games-played
   and the high score. Both are loaded on startup and saved only when a new record
   is hit (and on Ctrl+C). `model.pth` is committed to the repo.

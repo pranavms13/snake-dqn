@@ -23,13 +23,22 @@ MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
 LR = 0.001  # Learning rate
 
-# Compute device: prefer CUDA (NVIDIA GPU), then Apple MPS, otherwise CPU
-if torch.cuda.is_available():
-    DEVICE = torch.device('cuda')
-elif getattr(torch.backends, 'mps', None) is not None and torch.backends.mps.is_available():
-    DEVICE = torch.device('mps')
-else:
-    DEVICE = torch.device('cpu')
+# Compute device. Override with `--device cpu|cuda|mps`; otherwise auto-detect
+# (CUDA -> Apple MPS -> CPU). NOTE: the network is tiny (11 -> 256 -> 3) and trains
+# one sample per step, so a large GPU stays mostly idle and CPU is often FASTER due
+# to the lack of host<->device transfer overhead. Try `--device cpu` to compare.
+def _select_device():
+    if '--device' in sys.argv:
+        i = sys.argv.index('--device')
+        if i + 1 < len(sys.argv):
+            return torch.device(sys.argv[i + 1])
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    if getattr(torch.backends, 'mps', None) is not None and torch.backends.mps.is_available():
+        return torch.device('mps')
+    return torch.device('cpu')
+
+DEVICE = _select_device()
 print(f'Using device: {DEVICE}')
 
 # Direction enumeration
@@ -247,7 +256,8 @@ class Agent:
             final_move[move] = 1
         else:
             state0 = torch.tensor(state, dtype=torch.float, device=DEVICE)
-            prediction = self.model(state0)  # Prediction by the model
+            with torch.no_grad():
+                prediction = self.model(state0)  # Prediction by the model
             move = torch.argmax(prediction).item()
             final_move[move] = 1
 
@@ -294,20 +304,23 @@ class QTrainer:
             reward = torch.unsqueeze(reward, 0)
             game_over = (game_over, )
 
-        # 1: Predicted Q values with current state
+        done = torch.tensor(game_over, dtype=torch.bool, device=DEVICE)
+
+        # 1: Predicted Q values with the current state (one batched forward)
         pred = self.model(state)
 
+        # 2: Bellman target — Q_new = r + gamma * max(next Q), zeroed on terminal.
+        # Fully vectorized: ONE batched forward over next_state, no Python loop and
+        # no per-sample .item() host<->device syncs (the thing that pins the GPU at
+        # ~1% util). Wrapped in no_grad since the target must not backprop.
+        with torch.no_grad():
+            next_q = self.model(next_state).max(dim=1).values
+        Q_new = reward + self.gamma * next_q * (~done)
+
         target = pred.clone()
-        for idx in range(len(game_over)):
-            Q_new = reward[idx]
-            if not game_over[idx]:
-                Q_new = reward[idx] + self.gamma * torch.max(self.model(next_state[idx]))
-
-            target[idx][torch.argmax(action[idx]).item()] = Q_new
-
-        # 2: Q_new = r + y * max(next_predicted Q value) -> only do this if not game_over
-        # pred.clone()
-        # preds[argmax(action)] = Q_new
+        batch_idx = torch.arange(target.size(0), device=DEVICE)
+        action_idx = action.argmax(dim=1)
+        target[batch_idx, action_idx] = Q_new
 
         self.optimizer.zero_grad()
         loss = self.criterion(target, pred)
@@ -419,7 +432,14 @@ if __name__ == '__main__':
         help='Run without the pygame window; print training status to the CLI only '
              '(faster training).',
     )
-    parser.parse_args()  # validates args / provides --help; HEADLESS is read from argv
+    parser.add_argument(
+        '--device',
+        choices=['cpu', 'cuda', 'mps'],
+        default=None,
+        help='Force the compute device. Default: auto-detect (CUDA -> MPS -> CPU). '
+             'For this tiny network, --device cpu is often the fastest.',
+    )
+    parser.parse_args()  # validates args / --help; HEADLESS and DEVICE are read from argv
 
     if HEADLESS:
         print('Running in headless mode (no UI). Press Ctrl+C to stop and save.')
