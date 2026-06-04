@@ -7,14 +7,20 @@ Guidance for working in this repository.
 Snake game with a Deep Q-Network (DQN) agent that learns to play via reinforcement
 learning. PyTorch for the model, pygame for the game/rendering, numpy for state.
 
-Everything lives in a single file: `game.py`.
+Two trainers:
+- `game.py` — the original single-game trainer (pygame window, or `--headless`).
+- `train_vectorized.py` — a GPU-resident trainer that steps thousands of Snake
+  games in parallel as batched tensors (Ape-X-lite: per-env epsilon, shared replay).
+  No pygame, no per-step Python loop. Weight-compatible with `game.py` (`model.pth`).
 
 ## Run
 
 ```sh
-uv sync                            # creates .venv and installs deps from pyproject.toml/uv.lock
-uv run python game.py              # starts/resumes training; opens a pygame window
-uv run python game.py --headless   # no window; prints per-game status to the CLI (faster)
+uv sync                              # creates .venv and installs deps from pyproject.toml/uv.lock
+uv run python game.py                # starts/resumes training; opens a pygame window
+uv run python game.py --headless     # no window; prints per-game status to the CLI (faster)
+uv run python train_vectorized.py    # vectorized GPU trainer (thousands of envs at once)
+uv run python train_vectorized.py --num-envs 4096   # scale up to feed a bigger GPU
 ```
 
 This is a [uv](https://docs.astral.sh/uv/) project: dependencies live in `pyproject.toml`
@@ -53,6 +59,14 @@ model and stats before exiting. There are no tests and no build step.
   over `next_state` plus advanced indexing — do NOT reintroduce a per-sample Python
   loop with `self.model(next_state[idx])` / `.item()`. On GPU that becomes thousands
   of tiny kernel launches + host↔device syncs and was the original perf bug.
+- **`train_vectorized.py` works in grid cells, not pixels.** The board is W×H cells
+  (default 32×24 = the 640×480/20 grid). The 11-feature state is identical to
+  `game.py` (all relative/binary flags), so `model.pth` transfers between them.
+  The snake body is a per-env circular buffer + an `occ` occupancy grid; the
+  invariant `occ.sum() == length` per env must always hold (it's the smoke-test check).
+- **Don't bind `DEVICE`/`MODEL_FILE` as default args.** Resolve module globals at call
+  time (`x or MODEL_FILE`, explicit `device=DEVICE`). Defaults are bound once at import,
+  which silently caused a device mismatch and a wrong-file save during development.
 - **Persistence.** `model.pth` holds weights; `training_stats.txt` holds games-played
   and the high score. Both are loaded on startup and saved only when a new record
   is hit (and on Ctrl+C). `model.pth` is committed to the repo.
