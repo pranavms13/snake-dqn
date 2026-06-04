@@ -12,9 +12,13 @@ Everything lives in a single file: `game.py`.
 ## Run
 
 ```sh
-pip install -r requirements.txt
-python game.py          # starts/resumes training; opens a pygame window
+uv sync                            # creates .venv and installs deps from pyproject.toml/uv.lock
+uv run python game.py              # starts/resumes training; opens a pygame window
+uv run python game.py --headless   # no window; prints per-game status to the CLI (faster)
 ```
+
+This is a [uv](https://docs.astral.sh/uv/) project: dependencies live in `pyproject.toml`
+(pinned in `uv.lock`). Add deps with `uv add <pkg>`.
 
 Training runs in an infinite loop. Press **Ctrl+C** to stop — the handler saves the
 model and stats before exiting. There are no tests and no build step.
@@ -44,6 +48,8 @@ model and stats before exiting. There are no tests and no build step.
 - **Persistence.** `model.pth` holds weights; `training_stats.txt` holds games-played
   and the high score. Both are loaded on startup and saved only when a new record
   is hit (and on Ctrl+C). `model.pth` is committed to the repo.
-- **Rendering throttles training.** `play_step` calls `pygame.time.Clock().tick(120)`,
-  capping the loop at 120 FPS. For fast/headless training this cap and `_update_ui`
-  would need to be bypassed.
+- **Rendering throttles training.** In windowed mode `play_step` calls
+  `pygame.time.Clock().tick(120)`, capping the loop at 120 FPS. The `--headless`
+  flag sets a global `HEADLESS` (parsed from `argv` at import) that skips
+  `pygame.init()`, the font, `_update_ui`, and the FPS cap — so training runs as
+  fast as the GPU/CPU allows and status is printed per game to the CLI.

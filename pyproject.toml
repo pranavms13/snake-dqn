@@ -1,0 +1,17 @@
+[project]
+name = "snake-dqn"
+version = "0.1.0"
+description = "Snake game with a Deep Q-Network (DQN) agent that learns to play via reinforcement learning."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9,<3.14"
+dependencies = [
+    "pygame",
+    "numpy",
+    "torch",
+    "matplotlib",
+    "ipython",
+]
+
+[tool.uv]
+package = false
