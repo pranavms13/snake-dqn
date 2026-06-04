@@ -18,6 +18,15 @@ MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
 LR = 0.001  # Learning rate
 
+# Compute device: prefer CUDA (NVIDIA GPU), then Apple MPS, otherwise CPU
+if torch.cuda.is_available():
+    DEVICE = torch.device('cuda')
+elif getattr(torch.backends, 'mps', None) is not None and torch.backends.mps.is_available():
+    DEVICE = torch.device('mps')
+else:
+    DEVICE = torch.device('cpu')
+print(f'Using device: {DEVICE}')
+
 # Direction enumeration
 class Direction(Enum):
     RIGHT = 1
@@ -159,7 +168,7 @@ class Agent:
         self.epsilon = 0  # Randomness
         self.gamma = 0.9  # Discount rate
         self.memory = deque(maxlen=MAX_MEMORY)  # Popleft()
-        self.model = Linear_QNet(11, 256, 3)
+        self.model = Linear_QNet(11, 256, 3).to(DEVICE)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
     def get_state(self, game):
@@ -231,7 +240,7 @@ class Agent:
             move = random.randint(0, 2)
             final_move[move] = 1
         else:
-            state0 = torch.tensor(state, dtype=torch.float)
+            state0 = torch.tensor(state, dtype=torch.float, device=DEVICE)
             prediction = self.model(state0)  # Prediction by the model
             move = torch.argmax(prediction).item()
             final_move[move] = 1
@@ -254,7 +263,7 @@ class Linear_QNet(nn.Module):
         torch.save(self.state_dict(), file_name)
 
     def load(self, file_name='model.pth'):
-        self.load_state_dict(torch.load(file_name))
+        self.load_state_dict(torch.load(file_name, map_location=DEVICE))
 
 # Trainer class
 class QTrainer:
@@ -266,10 +275,10 @@ class QTrainer:
         self.criterion = nn.MSELoss()
 
     def train_step(self, state, action, reward, next_state, game_over):
-        state = torch.tensor(np.array(state), dtype=torch.float)
-        next_state = torch.tensor(np.array(next_state), dtype=torch.float)
-        action = torch.tensor(np.array(action), dtype=torch.long)
-        reward = torch.tensor(np.array(reward), dtype=torch.float)
+        state = torch.tensor(np.array(state), dtype=torch.float, device=DEVICE)
+        next_state = torch.tensor(np.array(next_state), dtype=torch.float, device=DEVICE)
+        action = torch.tensor(np.array(action), dtype=torch.long, device=DEVICE)
+        reward = torch.tensor(np.array(reward), dtype=torch.float, device=DEVICE)
 
         if len(state.shape) == 1:
             # Only one parameter to train
