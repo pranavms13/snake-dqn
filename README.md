@@ -7,7 +7,8 @@ This project implements a Snake game with an AI agent that learns to play the ga
 ```
 ├── game.py
 ├── model.pth
-├── requirements.txt
+├── pyproject.toml
+├── uv.lock
 ├── training_stats.txt
 └── README.md
 ```
@@ -15,35 +16,40 @@ This project implements a Snake game with an AI agent that learns to play the ga
 - `game.py`: Contains the main code for the Snake game and the AI agent.
 - `model.pth`: The saved model weights for the AI agent.
 - `training_stats.txt`: Contains training statistics such as the number of games played and the highest score achieved.
-- `requirements.txt`: Requirements file
+- `pyproject.toml`: Project metadata and dependencies (managed with [uv](https://docs.astral.sh/uv/)).
+- `uv.lock`: Pinned dependency lockfile.
 - `README.md`: This file.
 
 ## Requirements
 
-- Python 3.x
-- Pygame
-- NumPy
-- PyTorch
-- Matplotlib
+- [uv](https://docs.astral.sh/uv/) (handles Python and all dependencies: Pygame, NumPy, PyTorch, Matplotlib)
 
 ## Installation
 
 1. Clone the repository:
 ```sh
     git clone https://github.com/pranavms13/snake-dqn
-    cd snake-nn
+    cd snake-dqn
 ```
 
-2. Install the required packages:
+2. Install the dependencies (uv creates the virtual environment automatically):
 ```sh
-    pip install -r requirements.txt
+    uv sync
 ```
 
 ## Usage
 
 To train the AI agent, run:
 ```sh
-python game.py
+uv run python game.py
+```
+
+This opens a pygame window so you can watch the agent play while it learns.
+
+For faster training without the UI, use headless mode — it skips rendering and the
+frame-rate cap, and prints per-game status to the terminal instead:
+```sh
+uv run python game.py --headless
 ```
 
 The training process will start, and the AI agent will learn to play the Snake game. The training statistics and model weights will be saved periodically.

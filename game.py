@@ -9,9 +9,14 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-# Initialize Pygame
-pygame.init()
-font = pygame.font.SysFont('arial', 25)
+# Headless mode: no pygame window, status printed to the CLI only.
+# Parsed from argv early so we can skip display/font initialization on import.
+HEADLESS = '--headless' in sys.argv
+
+# Initialize Pygame (skip display + font when running headless)
+if not HEADLESS:
+    pygame.init()
+    font = pygame.font.SysFont('arial', 25)
 
 # Constants
 MAX_MEMORY = 100_000
@@ -95,9 +100,10 @@ class SnakeGame:
         else:
             self.snake.pop()
 
-        # Update UI and clock
-        self._update_ui()
-        pygame.time.Clock().tick(120)
+        # Update UI and clock (skipped in headless mode for fast training)
+        if not HEADLESS:
+            self._update_ui()
+            pygame.time.Clock().tick(120)
 
         # Return game over and score
         return reward, game_over, self.score
@@ -380,12 +386,13 @@ def train():
                         f.write(f'Number of games: {agent.n_games}\n')
                         f.write(f'Highest score: {record}\n')
 
-                print('Game', agent.n_games, 'Score', score, 'Record:', record)
-
                 plot_scores.append(score)
                 total_score += score
                 mean_score = total_score / agent.n_games
                 plot_mean_scores.append(mean_score)
+
+                print(f'Game {agent.n_games} | Score {score} | Record {record} | '
+                      f'Mean {mean_score:.2f}')
                 # plot(plot_scores, plot_mean_scores)
     except KeyboardInterrupt:
         # Handle Control+C to gracefully save the model, highscore, game number and exit
@@ -403,4 +410,17 @@ def train():
 
 # Run the training
 if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Train the Snake DQN agent.')
+    parser.add_argument(
+        '--headless',
+        action='store_true',
+        help='Run without the pygame window; print training status to the CLI only '
+             '(faster training).',
+    )
+    parser.parse_args()  # validates args / provides --help; HEADLESS is read from argv
+
+    if HEADLESS:
+        print('Running in headless mode (no UI). Press Ctrl+C to stop and save.')
     train()
