@@ -54,6 +54,25 @@ uv run python game.py --headless
 
 The training process will start, and the AI agent will learn to play the Snake game. The training statistics and model weights will be saved periodically.
 
+### Vectorized GPU training
+
+For much faster training, `train_vectorized.py` runs thousands of Snake games in
+parallel as batched tensors directly on the GPU — no pygame and no per-step Python
+loop. Each parallel game explores with its own epsilon (Ape-X style) while a single
+shared network learns from all of them via a replay buffer. It is weight-compatible
+with `game.py` (same `model.pth` / `training_stats.txt`):
+
+```sh
+uv run python train_vectorized.py                    # auto device, 1024 parallel games
+uv run python train_vectorized.py --num-envs 4096    # scale up to feed a bigger GPU
+uv run python train_vectorized.py --device cpu        # force CPU
+uv run python train_vectorized.py --max-games 100000  # stop after N games
+```
+
+Note: the network is tiny (11 → 256 → 3), so a large GPU will not be fully saturated
+even when vectorized — raise `--num-envs` to give it more work. Press **Ctrl+C** to
+stop and save.
+
 ## Classes and Functions
 
 ### `game.py`
